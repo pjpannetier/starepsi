@@ -49,10 +49,9 @@ const Galaxy = () => {
                             filteredData = filteredData
                                 .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
                                 .sort((a, b) => parseFloat(a.mag) - parseFloat(b.mag)) // Tri par magnitude
-                                .slice(0, 50);
                         } else if (filter === "hottest") {
                             // 50 objets célestes les plus chauds
-                            const spectralOrder = ["O", "B", "A", "F", "G", "K", "M"];
+                            const spectralOrder = ["O", "B", "A", "F"];
                             filteredData = filteredData
                                 .filter((star) => spectralOrder.includes(star.spect?.charAt(0))) // Types spectraux connus
                                 .sort(
@@ -60,6 +59,11 @@ const Galaxy = () => {
                                         spectralOrder.indexOf(a.spect?.charAt(0)) -
                                         spectralOrder.indexOf(b.spect?.charAt(0))
                                 )
+                        } else if (filter === "largest") {
+                            // 50 objets célestes les plus gros
+                            filteredData = filteredData
+                                .filter((star) => parseFloat(star.radius) > 0) // Objets avec un rayon valide
+                                .sort((a, b) => parseFloat(b.radius) - parseFloat(a.radius)) // Tri par rayon décroissant
                                 .slice(0, 50);
                         }
 
@@ -208,6 +212,19 @@ const Galaxy = () => {
                     onClick={() => setFilter("hottest")}
                 >
                     Objets célestes les plus chauds
+                </button>
+                <button
+                    style={{
+                        padding: "10px 20px",
+                        borderRadius: "5px",
+                        backgroundColor: filter === "largest" ? "#6A5ACD" : "#555",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => setFilter("largest")}
+                >
+                    Objets célestes les plus gros
                 </button>
             </div>
 
