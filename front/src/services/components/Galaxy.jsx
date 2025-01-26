@@ -5,188 +5,221 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import PopOver from "./PopOver";
 
 const Galaxy = () => {
-  const [starsData, setStarsData] = useState([]);
-  const [hoveredStar, setHoveredStar] = useState(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [filter, setFilter] = useState("nearest-visible"); // État pour le filtre actif
-  const canvasRef = useRef(null);
+    const [starsData, setStarsData] = useState([]);
+    const [hoveredStar, setHoveredStar] = useState(null);
+    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+    const [filter, setFilter] = useState("all"); // État par défaut pour afficher tous les objets célestes
+    const canvasRef = useRef(null);
 
-  useEffect(() => {
-    const fetchCSVData = async () => {
-      try {
-        const response = await fetch("/data/hygdataV4.csv");
-        const textData = await response.text();
-
-        Papa.parse(textData, {
-          complete: (parsedData) => {
-            let filteredData = parsedData.data;
-
-            if (filter === "nearest-visible") {
-              // Filtre pour les 50 étoiles les plus proches visibles
-              filteredData = filteredData
-                  .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
-                  .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist)) // Tri par distance
-                  .slice(0, 50); // Garder les 50 premières
-            } else if (filter === "brightest") {
-              // Filtre pour les 50 objets les plus brillants
-              filteredData = filteredData
-                  .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
-                  .sort((a, b) => parseFloat(a.mag) - parseFloat(b.mag)) // Tri par magnitude
-                  .slice(0, 50); // Garder les 50 premières
-            } else if (filter === "all-stars") {
-              // Filtre pour afficher toutes les étoiles
-              filteredData = filteredData.map((star) => star); // Pas de restriction
-            }
-
-            // Mapper les données après le filtrage
-            const mappedData = filteredData.map((star) => ({
-              name: star.proper || "Unnamed Star",
-              spect: star.spect || "Unknown",
-              dist: parseFloat(star.dist) || "Unknown",
-              mag: parseFloat(star.mag) || "Unknown",
-              x: parseFloat(star.x) || 0,
-              y: parseFloat(star.y) || 0,
-              z: parseFloat(star.z) || 0,
-            }));
-
-            setStarsData(mappedData);
-          },
-          header: true,
-          delimiter: ";",
-        });
-      } catch (error) {
-        console.error("Erreur lors de la lecture des données CSV :", error);
-      }
+    // Fonction pour obtenir la couleur basée sur le type spectral
+    const getColorFromSpectralType = (spectralType) => {
+        const colors = {
+            O: "#5A5AFF", // Bleu foncé
+            B: "#5AC8FA", // Bleu clair
+            A: "#FFFFFF", // Blanc pur
+            F: "#FFFFAA", // Blanc-jaune
+            G: "#FFD700", // Jaune
+            K: "#FFA500", // Orange
+            M: "#FF4500", // Rouge
+        };
+        return colors[spectralType?.charAt(0)] || "#FFFFFF"; // Couleur par défaut (blanc)
     };
 
-    fetchCSVData();
-  }, [filter]); // Recharger les données lorsque le filtre change
+    useEffect(() => {
+        const fetchCSVData = async () => {
+            try {
+                const response = await fetch("/data/hygdataV4.csv");
+                const textData = await response.text();
 
-  useEffect(() => {
-    if (starsData.length > 0) {
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+                Papa.parse(textData, {
+                    complete: (parsedData) => {
+                        let filteredData = parsedData.data;
 
-      const starGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-      const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const stars = starsData.map((star) => {
-        const starObj = new THREE.Mesh(starGeometry, starMaterial);
-        starObj.position.set(star.x, star.y, star.z);
-        starObj.userData = star;
-        scene.add(starObj);
-        return starObj;
-      });
+                        if (filter === "all") {
+                            // Afficher tous les objets célestes
+                            filteredData = parsedData.data; // Pas de filtre
+                        } else if (filter === "nearest") {
+                            // 50 étoiles les plus proches
+                            filteredData = filteredData
+                                .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
+                                .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist)) // Tri par distance
+                                .slice(0, 50);
+                        } else if (filter === "brightest") {
+                            // 50 objets célestes les plus brillants
+                            filteredData = filteredData
+                                .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
+                                .sort((a, b) => parseFloat(a.mag) - parseFloat(b.mag)) // Tri par magnitude
+                                .slice(0, 50);
+                        } else if (filter === "hottest") {
+                            // 50 objets célestes les plus chauds
+                            const spectralOrder = ["O", "B", "A", "F", "G", "K", "M"];
+                            filteredData = filteredData
+                                .filter((star) => spectralOrder.includes(star.spect?.charAt(0))) // Types spectraux connus
+                                .sort(
+                                    (a, b) =>
+                                        spectralOrder.indexOf(a.spect?.charAt(0)) -
+                                        spectralOrder.indexOf(b.spect?.charAt(0))
+                                )
+                                .slice(0, 50);
+                        }
 
-      const ambientLight = new THREE.AmbientLight(0x404040);
-      scene.add(ambientLight);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-      directionalLight.position.set(0, 1, 1).normalize();
-      scene.add(directionalLight);
+                        const mappedData = filteredData.map((star) => ({
+                            name: star.proper || "Unnamed Star",
+                            spect: star.spect || "Unknown",
+                            dist: parseFloat(star.dist) || "Unknown",
+                            mag: parseFloat(star.mag) || "Unknown",
+                            radius: parseFloat(star.radius) || 1,
+                            x: parseFloat(star.x) || 0,
+                            y: parseFloat(star.y) || 0,
+                            z: parseFloat(star.z) || 0,
+                        }));
 
-      camera.position.set(0, 200, 500);
-      const controls = new OrbitControls(camera, renderer.domElement);
+                        setStarsData(mappedData);
+                    },
+                    header: true,
+                    delimiter: ";",
+                });
+            } catch (error) {
+                console.error("Erreur lors de la lecture des données CSV :", error);
+            }
+        };
 
-      const raycaster = new THREE.Raycaster();
-      const mouse = new THREE.Vector2();
+        fetchCSVData();
+    }, [filter]);
 
-      const onMouseMove = (event) => {
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        setMousePosition({ x: event.clientX, y: event.clientY });
-      };
+    useEffect(() => {
+        if (starsData.length > 0) {
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
+            renderer.setSize(window.innerWidth, window.innerHeight);
 
-      window.addEventListener("mousemove", onMouseMove);
+            const starGeometry = new THREE.SphereGeometry(0.5, 16, 16);
 
-      const animate = () => {
-        requestAnimationFrame(animate);
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(stars);
+            const stars = starsData.map((star) => {
+                const color = getColorFromSpectralType(star.spect);
+                const starMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(color) });
+                const starObj = new THREE.Mesh(starGeometry, starMaterial);
+                starObj.position.set(star.x, star.y, star.z);
+                starObj.userData = star;
+                scene.add(starObj);
+                return starObj;
+            });
 
-        if (intersects.length > 0) {
-          const hoveredStar = intersects[0].object.userData;
-          setHoveredStar(hoveredStar);
-        } else {
-          setHoveredStar(null);
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(0, 1, 1).normalize();
+            scene.add(directionalLight);
+
+            camera.position.set(0, 200, 500);
+            const controls = new OrbitControls(camera, renderer.domElement);
+
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            const onMouseMove = (event) => {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                setMousePosition({ x: event.clientX, y: event.clientY });
+            };
+
+            window.addEventListener("mousemove", onMouseMove);
+
+            const animate = () => {
+                requestAnimationFrame(animate);
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(stars);
+
+                if (intersects.length > 0) {
+                    const hoveredStar = intersects[0].object.userData;
+                    setHoveredStar(hoveredStar);
+                } else {
+                    setHoveredStar(null);
+                }
+
+                controls.update();
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            window.addEventListener("resize", () => {
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                renderer.setSize(width, height);
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+            });
         }
+    }, [starsData]);
 
-        controls.update();
-        renderer.render(scene, camera);
-      };
+    return (
+        <div>
+            <div style={{ padding: "20px", backgroundColor: "#333", color: "#fff", display: "flex", gap: "10px" }}>
+                <button
+                    style={{
+                        padding: "10px 20px",
+                        borderRadius: "5px",
+                        backgroundColor: filter === "all" ? "#777" : "#555",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => setFilter("all")}
+                >
+                    Tous les objets célestes
+                </button>
+                <button
+                    style={{
+                        padding: "10px 20px",
+                        borderRadius: "5px",
+                        backgroundColor: filter === "nearest" ? "#777" : "#555",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => setFilter("nearest")}
+                >
+                    50 Étoiles les plus proches
+                </button>
+                <button
+                    style={{
+                        padding: "10px 20px",
+                        borderRadius: "5px",
+                        backgroundColor: filter === "brightest" ? "#FFD700" : "#555",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => setFilter("brightest")}
+                >
+                    Objets célestes les plus brillants
+                </button>
+                <button
+                    style={{
+                        padding: "10px 20px",
+                        borderRadius: "5px",
+                        backgroundColor: filter === "hottest" ? "#FF4500" : "#555",
+                        color: "#fff",
+                        border: "none",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => setFilter("hottest")}
+                >
+                    Objets célestes les plus chauds
+                </button>
+            </div>
 
-      animate();
+            <canvas ref={canvasRef}></canvas>
 
-      window.addEventListener("resize", () => {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        renderer.setSize(width, height);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      });
-    }
-  }, [starsData]);
-
-  return (
-      <div>
-        {/* Boutons pour filtrer les étoiles */}
-        <div style={{ padding: "20px", backgroundColor: "#333", color: "#fff" }}>
-          <button
-              style={{
-                padding: "10px 20px",
-                margin: "10px",
-                borderRadius: "5px",
-                backgroundColor: filter === "nearest-visible" ? "#777" : "#555",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-              onClick={() => setFilter("nearest-visible")}
-          >
-            50 Étoiles les plus proches
-          </button>
-
-          <button
-              style={{
-                padding: "10px 20px",
-                margin: "10px",
-                borderRadius: "5px",
-                backgroundColor: filter === "brightest" ? "#777" : "#555",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-              onClick={() => setFilter("brightest")}
-          >
-            50 Objets les plus brillants
-          </button>
-
-          <button
-              style={{
-                padding: "10px 20px",
-                margin: "10px",
-                borderRadius: "5px",
-                backgroundColor: filter === "all-stars" ? "#777" : "#555",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-              }}
-              onClick={() => setFilter("all-stars")}
-          >
-            Afficher toutes les étoiles
-          </button>
+            <PopOver
+                data={hoveredStar}
+                position={mousePosition}
+                isVisible={hoveredStar !== null}
+            />
         </div>
-
-        <canvas ref={canvasRef}></canvas>
-
-        <PopOver
-            data={hoveredStar}
-            position={mousePosition}
-            isVisible={hoveredStar !== null}
-        />
-      </div>
-  );
+    );
 };
 
 export default Galaxy;
