@@ -1,137 +1,112 @@
 import React, { useEffect, useState, useRef } from "react";
-import Papa from "papaparse";
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
-import PopOver from "./PopOver";
+import Papa from "papaparse";  // Utilisation de PapaParse pour lire le CSV
+import * as THREE from "three"; // Importation de Three.js
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls" // Importation des contrôles de caméra
 
 const Galaxy = () => {
-  const [starsData, setStarsData] = useState([]);
-  const [hoveredStar, setHoveredStar] = useState(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const canvasRef = useRef(null);
+  const [starsData, setStarsData] = useState([]); // Pour stocker les données des étoiles
+  const canvasRef = useRef(null); // Référence au canvas pour afficher la scène 3D
 
   useEffect(() => {
     const fetchCSVData = async () => {
       try {
-        const response = await fetch("/data/hygdataV4.csv");
-        const textData = await response.text();
+        const response = await fetch("/data/hygdataV4.csv"); // Utiliser fetch pour récupérer le fichier CSV
+        const textData = await response.text(); // Lire le fichier CSV en texte
 
+        // Parser le fichier CSV avec papaparse
         Papa.parse(textData, {
           complete: (parsedData) => {
-            const filteredData = parsedData.data.map((star) => ({
-              name: star.proper || "Unnamed Star", // Nom de l'étoile
-              spect: star.spect || "Unknown", // Type spectral
-              mass: star.mass ? parseFloat(star.mass).toFixed(2) : "Unknown", // Masse (arrondi)
-              radius: star.radius ? parseFloat(star.radius).toFixed(2) : "Unknown", // Rayon (arrondi)
-              luminosity: star.lum ? parseFloat(star.lum).toFixed(2) : "Unknown", // Luminosité (arrondi)
-              evolutionSustaining: star.var === "true", // Étoile variable ou non
-              constellation: star.cons || "Unknown", // Constellation
-              x: parseFloat(star.x) || 0,
-              y: parseFloat(star.y) || 0,
-              z: parseFloat(star.z) || 0,
+            // Extraire uniquement les colonnes x, y, z pour les étoiles
+            const filteredData = parsedData.data.map(star => ({
+              x: parseFloat(star.x) || Math.random() * 500 - 250,  // S'assurer que les valeurs sont numériques
+              y: parseFloat(star.y) || Math.random() * 500 - 250,
+              z: parseFloat(star.z) || Math.random() * 500 - 250,
             }));
-
-            setStarsData(filteredData);
+            setStarsData(filteredData); // Afficher toutes les étoiles disponibles
           },
-          header: true,
-          delimiter: ";",
+          header: true, // Utiliser la première ligne comme noms de colonnes
+          delimiter: ";", // Spécifier que le délimiteur est un point-virgule
         });
       } catch (error) {
         console.error("Erreur lors de la lecture des données CSV :", error);
       }
     };
 
-    fetchCSVData();
+    fetchCSVData();  // Appel de la fonction pour récupérer et parser les données
   }, []);
 
   useEffect(() => {
     if (starsData.length > 0) {
-      // Initialisation de la scène
+      // Initialisation de la scène 3D avec three.js
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight); // Ajuster le canvas à la taille de la fenêtre
       document.body.appendChild(renderer.domElement);
 
-      // Ajout des étoiles
-      const starGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-      const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const stars = starsData.map((star) => {
+      // Ajouter des étoiles à partir des données CSV
+      const starGeometry = new THREE.SphereGeometry(0.5, 16, 16); // Sphère de petite taille pour les étoiles
+      const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff }); // Couleur blanche pour les étoiles
+
+      // Ajouter des étoiles selon les données
+      starsData.forEach((star) => {
         const starObj = new THREE.Mesh(starGeometry, starMaterial);
-        starObj.position.set(star.x, star.y, star.z);
-        starObj.userData = star; // Associe les données de l'étoile à l'objet
+        
+        // Positionner les étoiles en fonction des données x, y, z
+        const x = star.x;
+        const y = star.y;
+        const z = star.z;
+
+        starObj.position.set(x, y, z);
         scene.add(starObj);
-        return starObj;
       });
 
-      // Ajout des lumières
-      const ambientLight = new THREE.AmbientLight(0x404040);
+      // Ajouter une lumière ambiante
+      const ambientLight = new THREE.AmbientLight(0x404040); // Lumière douce
       scene.add(ambientLight);
+
+      // Ajouter une lumière directionnelle pour simuler un soleil
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(0, 1, 1).normalize();
       scene.add(directionalLight);
 
-      // Positionnement initial de la caméra
-      camera.position.set(0, 200, 500);
-      camera.lookAt(new THREE.Vector3(0, 0, 0));
+      // Positionner la caméra pour une vue dézoomée
+      camera.position.set(0, 200, 500); // Placer la caméra plus loin pour un dézoom
+      camera.lookAt(new THREE.Vector3(0, 0, 0)); // Regarder vers le centre de la galaxie
 
-      // Configuration des contrôles
+      // Ajouter les contrôles OrbitControls pour permettre le zoom et la rotation
       const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.25;
+      controls.screenSpacePanning = false;
+      controls.maxPolarAngle = Math.PI / 2; // Limiter la caméra à se déplacer seulement autour de l'axe vertical
 
-      // Raycaster et souris
-      const raycaster = new THREE.Raycaster();
-      const mouse = new THREE.Vector2();
-
-      const onMouseMove = (event) => {
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        setMousePosition({ x: event.clientX, y: event.clientY });
-      };
-
-      window.addEventListener("mousemove", onMouseMove);
+      // Gérer le redimensionnement de la fenêtre
+      window.addEventListener('resize', () => {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        // Mettre à jour les dimensions du renderer et du camera aspect ratio
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      });
 
       // Animation de la scène
       const animate = () => {
         requestAnimationFrame(animate);
 
-        // Détection des intersections avec la souris
-        raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(stars);
+        // Mettre à jour les contrôles
+        controls.update(); 
 
-        if (intersects.length > 0) {
-          const hoveredStar = intersects[0].object.userData;
-          setHoveredStar(hoveredStar); // Mets à jour l'étoile survolée
-        } else {
-          setHoveredStar(null); // Pas d'interaction
-        }
-
-        controls.update();
-        renderer.render(scene, camera); // Rendu de la scène
+        renderer.render(scene, camera);
       };
 
-      animate(); // Appel initial de la fonction d'animation
-
-      // Gestion du redimensionnement de la fenêtre
-      window.addEventListener("resize", () => {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        renderer.setSize(width, height);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      });
+      animate();
     }
   }, [starsData]);
 
-  return (
-      <>
-        <canvas ref={canvasRef}></canvas>
-        <PopOver
-            data={hoveredStar}
-            position={mousePosition}
-            isVisible={hoveredStar !== null}
-        />
-      </>
-  );
+  return <canvas ref={canvasRef}></canvas>; // Le canvas où sera affichée la galaxie
 };
 
 export default Galaxy;
