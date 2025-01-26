@@ -6,12 +6,11 @@ import PopOver from "./PopOver";
 
 const Galaxy = () => {
   const [starsData, setStarsData] = useState([]);
-  const [filteredStars, setFilteredStars] = useState([]);
   const [hoveredStar, setHoveredStar] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [filter, setFilter] = useState("nearest-visible"); // État pour le filtre actif
   const canvasRef = useRef(null);
 
-  // Charger les données CSV
   useEffect(() => {
     const fetchCSVData = async () => {
       try {
@@ -20,22 +19,37 @@ const Galaxy = () => {
 
         Papa.parse(textData, {
           complete: (parsedData) => {
-            const parsedStars = parsedData.data
-                .map((star) => ({
-                  name: star.proper || "Unnamed Star",
-                  spect: star.spect || "Unknown",
-                  mass: star.mass ? parseFloat(star.mass).toFixed(2) : "Unknown",
-                  radius: star.radius ? parseFloat(star.radius).toFixed(2) : "Unknown",
-                  luminosity: star.lum ? parseFloat(star.lum).toFixed(2) : "Unknown",
-                  evolutionSustaining: star.var === "true",
-                  constellation: star.cons || "Unknown",
-                  x: parseFloat(star.x) || 0,
-                  y: parseFloat(star.y) || 0,
-                  z: parseFloat(star.z) || 0,
-                }))
-                .filter((star) => !isNaN(star.x) && !isNaN(star.y) && !isNaN(star.z)); // Éliminer les entrées invalides
-            setStarsData(parsedStars);
-            setFilteredStars(parsedStars); // Afficher toutes les étoiles par défaut
+            let filteredData = parsedData.data;
+
+            if (filter === "nearest-visible") {
+              // Filtre pour les 50 étoiles les plus proches visibles
+              filteredData = filteredData
+                  .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
+                  .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist)) // Tri par distance
+                  .slice(0, 50); // Garder les 50 premières
+            } else if (filter === "brightest") {
+              // Filtre pour les 50 objets les plus brillants
+              filteredData = filteredData
+                  .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
+                  .sort((a, b) => parseFloat(a.mag) - parseFloat(b.mag)) // Tri par magnitude
+                  .slice(0, 50); // Garder les 50 premières
+            } else if (filter === "all-stars") {
+              // Filtre pour afficher toutes les étoiles
+              filteredData = filteredData.map((star) => star); // Pas de restriction
+            }
+
+            // Mapper les données après le filtrage
+            const mappedData = filteredData.map((star) => ({
+              name: star.proper || "Unnamed Star",
+              spect: star.spect || "Unknown",
+              dist: parseFloat(star.dist) || "Unknown",
+              mag: parseFloat(star.mag) || "Unknown",
+              x: parseFloat(star.x) || 0,
+              y: parseFloat(star.y) || 0,
+              z: parseFloat(star.z) || 0,
+            }));
+
+            setStarsData(mappedData);
           },
           header: true,
           delimiter: ";",
@@ -46,25 +60,10 @@ const Galaxy = () => {
     };
 
     fetchCSVData();
-  }, []);
+  }, [filter]); // Recharger les données lorsque le filtre change
 
-  // Filtrer les étoiles en fonction du filtre
-  const filterStars = (filterType) => {
-    if (filterType === "closest") {
-      const sortedStars = [...starsData].sort((a, b) => {
-        const distanceA = Math.sqrt(a.x ** 2 + a.y ** 2 + a.z ** 2);
-        const distanceB = Math.sqrt(b.x ** 2 + b.y ** 2 + b.z ** 2);
-        return distanceA - distanceB;
-      });
-      setFilteredStars(sortedStars.slice(0, 50)); // Les 50 étoiles les plus proches
-    } else {
-      setFilteredStars(starsData); // Toutes les étoiles
-    }
-  };
-
-  // Afficher les étoiles dans la scène
   useEffect(() => {
-    if (filteredStars.length > 0) {
+    if (starsData.length > 0) {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
@@ -73,8 +72,7 @@ const Galaxy = () => {
 
       const starGeometry = new THREE.SphereGeometry(0.5, 16, 16);
       const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-
-      const stars = filteredStars.map((star) => {
+      const stars = starsData.map((star) => {
         const starObj = new THREE.Mesh(starGeometry, starMaterial);
         starObj.position.set(star.x, star.y, star.z);
         starObj.userData = star;
@@ -89,8 +87,6 @@ const Galaxy = () => {
       scene.add(directionalLight);
 
       camera.position.set(0, 200, 500);
-      camera.lookAt(new THREE.Vector3(0, 0, 0));
-
       const controls = new OrbitControls(camera, renderer.domElement);
 
       const raycaster = new THREE.Raycaster();
@@ -106,7 +102,6 @@ const Galaxy = () => {
 
       const animate = () => {
         requestAnimationFrame(animate);
-
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(stars);
 
@@ -131,39 +126,66 @@ const Galaxy = () => {
         camera.updateProjectionMatrix();
       });
     }
-  }, [filteredStars]);
-
-  const buttonStyle = {
-    display: "block",
-    marginBottom: "10px",
-    padding: "10px 15px",
-    fontSize: "14px",
-    fontWeight: "bold",
-    color: "white",
-    backgroundColor: "#4CAF50",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-    textAlign: "center",
-  };
+  }, [starsData]);
 
   return (
-      <>
-        <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
-          <button style={buttonStyle} onClick={() => filterStars("all")}>
-            Toutes les étoiles
+      <div>
+        {/* Boutons pour filtrer les étoiles */}
+        <div style={{ padding: "20px", backgroundColor: "#333", color: "#fff" }}>
+          <button
+              style={{
+                padding: "10px 20px",
+                margin: "10px",
+                borderRadius: "5px",
+                backgroundColor: filter === "nearest-visible" ? "#777" : "#555",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+              onClick={() => setFilter("nearest-visible")}
+          >
+            50 Étoiles les plus proches
           </button>
-          <button style={buttonStyle} onClick={() => filterStars("closest")}>
-            50 étoiles les plus proches
+
+          <button
+              style={{
+                padding: "10px 20px",
+                margin: "10px",
+                borderRadius: "5px",
+                backgroundColor: filter === "brightest" ? "#777" : "#555",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+              onClick={() => setFilter("brightest")}
+          >
+            50 Objets les plus brillants
+          </button>
+
+          <button
+              style={{
+                padding: "10px 20px",
+                margin: "10px",
+                borderRadius: "5px",
+                backgroundColor: filter === "all-stars" ? "#777" : "#555",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+              onClick={() => setFilter("all-stars")}
+          >
+            Afficher toutes les étoiles
           </button>
         </div>
+
         <canvas ref={canvasRef}></canvas>
+
         <PopOver
             data={hoveredStar}
             position={mousePosition}
             isVisible={hoveredStar !== null}
         />
-      </>
+      </div>
   );
 };
 
