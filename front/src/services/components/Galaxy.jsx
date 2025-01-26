@@ -6,10 +6,12 @@ import PopOver from "./PopOver";
 
 const Galaxy = () => {
   const [starsData, setStarsData] = useState([]);
+  const [filteredStars, setFilteredStars] = useState([]);
   const [hoveredStar, setHoveredStar] = useState(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const canvasRef = useRef(null);
 
+  // Charger les données CSV
   useEffect(() => {
     const fetchCSVData = async () => {
       try {
@@ -18,20 +20,22 @@ const Galaxy = () => {
 
         Papa.parse(textData, {
           complete: (parsedData) => {
-            const filteredData = parsedData.data.map((star) => ({
-              name: star.proper || "Unnamed Star", // Nom de l'étoile
-              spect: star.spect || "Unknown", // Type spectral
-              mass: star.mass ? parseFloat(star.mass).toFixed(2) : "Unknown", // Masse (arrondi)
-              radius: star.radius ? parseFloat(star.radius).toFixed(2) : "Unknown", // Rayon (arrondi)
-              luminosity: star.lum ? parseFloat(star.lum).toFixed(2) : "Unknown", // Luminosité (arrondi)
-              evolutionSustaining: star.var === "true", // Étoile variable ou non
-              constellation: star.cons || "Unknown", // Constellation
-              x: parseFloat(star.x) || 0,
-              y: parseFloat(star.y) || 0,
-              z: parseFloat(star.z) || 0,
-            }));
-
-            setStarsData(filteredData);
+            const parsedStars = parsedData.data
+                .map((star) => ({
+                  name: star.proper || "Unnamed Star",
+                  spect: star.spect || "Unknown",
+                  mass: star.mass ? parseFloat(star.mass).toFixed(2) : "Unknown",
+                  radius: star.radius ? parseFloat(star.radius).toFixed(2) : "Unknown",
+                  luminosity: star.lum ? parseFloat(star.lum).toFixed(2) : "Unknown",
+                  evolutionSustaining: star.var === "true",
+                  constellation: star.cons || "Unknown",
+                  x: parseFloat(star.x) || 0,
+                  y: parseFloat(star.y) || 0,
+                  z: parseFloat(star.z) || 0,
+                }))
+                .filter((star) => !isNaN(star.x) && !isNaN(star.y) && !isNaN(star.z)); // Éliminer les entrées invalides
+            setStarsData(parsedStars);
+            setFilteredStars(parsedStars); // Afficher toutes les étoiles par défaut
           },
           header: true,
           delimiter: ";",
@@ -44,41 +48,51 @@ const Galaxy = () => {
     fetchCSVData();
   }, []);
 
+  // Filtrer les étoiles en fonction du filtre
+  const filterStars = (filterType) => {
+    if (filterType === "closest") {
+      const sortedStars = [...starsData].sort((a, b) => {
+        const distanceA = Math.sqrt(a.x ** 2 + a.y ** 2 + a.z ** 2);
+        const distanceB = Math.sqrt(b.x ** 2 + b.y ** 2 + b.z ** 2);
+        return distanceA - distanceB;
+      });
+      setFilteredStars(sortedStars.slice(0, 50)); // Les 50 étoiles les plus proches
+    } else {
+      setFilteredStars(starsData); // Toutes les étoiles
+    }
+  };
+
+  // Afficher les étoiles dans la scène
   useEffect(() => {
-    if (starsData.length > 0) {
-      // Initialisation de la scène
+    if (filteredStars.length > 0) {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      // Ajout des étoiles
       const starGeometry = new THREE.SphereGeometry(0.5, 16, 16);
       const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-      const stars = starsData.map((star) => {
+
+      const stars = filteredStars.map((star) => {
         const starObj = new THREE.Mesh(starGeometry, starMaterial);
         starObj.position.set(star.x, star.y, star.z);
-        starObj.userData = star; // Associe les données de l'étoile à l'objet
+        starObj.userData = star;
         scene.add(starObj);
         return starObj;
       });
 
-      // Ajout des lumières
       const ambientLight = new THREE.AmbientLight(0x404040);
       scene.add(ambientLight);
       const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
       directionalLight.position.set(0, 1, 1).normalize();
       scene.add(directionalLight);
 
-      // Positionnement initial de la caméra
       camera.position.set(0, 200, 500);
       camera.lookAt(new THREE.Vector3(0, 0, 0));
 
-      // Configuration des contrôles
       const controls = new OrbitControls(camera, renderer.domElement);
 
-      // Raycaster et souris
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
 
@@ -90,28 +104,25 @@ const Galaxy = () => {
 
       window.addEventListener("mousemove", onMouseMove);
 
-      // Animation de la scène
       const animate = () => {
         requestAnimationFrame(animate);
 
-        // Détection des intersections avec la souris
         raycaster.setFromCamera(mouse, camera);
         const intersects = raycaster.intersectObjects(stars);
 
         if (intersects.length > 0) {
           const hoveredStar = intersects[0].object.userData;
-          setHoveredStar(hoveredStar); // Mets à jour l'étoile survolée
+          setHoveredStar(hoveredStar);
         } else {
-          setHoveredStar(null); // Pas d'interaction
+          setHoveredStar(null);
         }
 
         controls.update();
-        renderer.render(scene, camera); // Rendu de la scène
+        renderer.render(scene, camera);
       };
 
-      animate(); // Appel initial de la fonction d'animation
+      animate();
 
-      // Gestion du redimensionnement de la fenêtre
       window.addEventListener("resize", () => {
         const width = window.innerWidth;
         const height = window.innerHeight;
@@ -120,10 +131,32 @@ const Galaxy = () => {
         camera.updateProjectionMatrix();
       });
     }
-  }, [starsData]);
+  }, [filteredStars]);
+
+  const buttonStyle = {
+    display: "block",
+    marginBottom: "10px",
+    padding: "10px 15px",
+    fontSize: "14px",
+    fontWeight: "bold",
+    color: "white",
+    backgroundColor: "#4CAF50",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer",
+    textAlign: "center",
+  };
 
   return (
       <>
+        <div style={{ position: "absolute", top: 20, left: 20, zIndex: 1000 }}>
+          <button style={buttonStyle} onClick={() => filterStars("all")}>
+            Toutes les étoiles
+          </button>
+          <button style={buttonStyle} onClick={() => filterStars("closest")}>
+            50 étoiles les plus proches
+          </button>
+        </div>
         <canvas ref={canvasRef}></canvas>
         <PopOver
             data={hoveredStar}
