@@ -21,5 +21,6 @@
    ![image](https://github.com/user-attachments/assets/61573cc0-df41-4263-9352-75445482a974)
    
 Hover over a star to check its name and constellation : 
+
 ![image](https://github.com/user-attachments/assets/2c6c7f32-67ed-46ec-b228-afb5040e2743)
 
