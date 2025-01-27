@@ -43,12 +43,13 @@ const Galaxy = () => {
                             filteredData = filteredData
                                 .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
                                 .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist)) // Tri par distance
-                                .slice(0, 50);
+                                .slice(0, 300);
                         } else if (filter === "brightest") {
                             // 50 objets célestes les plus brillants
                             filteredData = filteredData
                                 .filter((star) => parseFloat(star.mag) <= 6) // Étoiles visibles
                                 .sort((a, b) => parseFloat(a.mag) - parseFloat(b.mag)) // Tri par magnitude
+                                .slice(0, 300);
                         } else if (filter === "hottest") {
                             // 50 objets célestes les plus chauds
                             const spectralOrder = ["O", "B", "A", "F"];
@@ -59,12 +60,13 @@ const Galaxy = () => {
                                         spectralOrder.indexOf(a.spect?.charAt(0)) -
                                         spectralOrder.indexOf(b.spect?.charAt(0))
                                 )
+                                .slice(0, 300);
                         } else if (filter === "largest") {
                             // 50 objets célestes les plus gros
                             filteredData = filteredData
                                 .filter((star) => parseFloat(star.radius) > 0) // Objets avec un rayon valide
                                 .sort((a, b) => parseFloat(b.radius) - parseFloat(a.radius)) // Tri par rayon décroissant
-                                .slice(0, 50);
+                                .slice(0, 300);
                         }
 
                         const mappedData = filteredData.map((star) => ({
@@ -185,7 +187,7 @@ const Galaxy = () => {
                     }}
                     onClick={() => setFilter("nearest")}
                 >
-                    50 Étoiles les plus proches
+                    Étoiles les plus proche de la terre
                 </button>
                 <button
                     style={{
@@ -198,7 +200,7 @@ const Galaxy = () => {
                     }}
                     onClick={() => setFilter("brightest")}
                 >
-                    Objets célestes les plus brillants
+                    Étoiles les plus brillantes
                 </button>
                 <button
                     style={{
@@ -211,7 +213,7 @@ const Galaxy = () => {
                     }}
                     onClick={() => setFilter("hottest")}
                 >
-                    Objets célestes les plus chauds
+                    Étoiles les plus chaudes
                 </button>
                 <button
                     style={{
@@ -224,7 +226,7 @@ const Galaxy = () => {
                     }}
                     onClick={() => setFilter("largest")}
                 >
-                    Objets célestes les plus gros
+                    Étoiles les plus grosses
                 </button>
             </div>
 
