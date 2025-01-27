@@ -34,22 +34,7 @@ const PopOver = ({ data, position, isVisible }) => {
     return (
         <div style={popOverStyle}>
             <div style={{ ...fieldStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center" }}>
-                {data.name || "Unnamed Star"}
-            </div>
-            <div style={fieldStyle}>
-                Type: <span style={boldStyle}>{data.spect || "Unknown"}</span>
-            </div>
-            <div style={fieldStyle}>
-                Mass: <span style={boldStyle}>{data.mass ? `${data.mass} Sun mass` : "Unknown"}</span>
-            </div>
-            <div style={fieldStyle}>
-                Radius: <span style={boldStyle}>{data.radius ? `${data.radius} Sun radius` : "Unknown"}</span>
-            </div>
-            <div style={fieldStyle}>
-                Luminosity: <span style={boldStyle}>{data.luminosity ? `${data.luminosity} Sun luminosity` : "Unknown"}</span>
-            </div>
-            <div style={fieldStyle}>
-                Evolution sustaining: <span style={boldStyle}>{data.evolutionSustaining ? "true" : "false"}</span>
+                Nom : {data.spect || "Unnamed Star"}
             </div>
             <div style={fieldStyle}>
                 Constellation : <span style={boldStyle}>{data.cons ? "true" : "false"}</span>
